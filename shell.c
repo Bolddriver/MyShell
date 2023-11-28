@@ -9,14 +9,20 @@
 //拆分参数，忽略双引号
 int parse(char* buf, char** args)
 {
+    // 遍历要解析的命令的每个字符，
+    // 把命令的每个参数的第一个字符的地址赋值给args数组
+    // 把每个参数的最后一个字符的下一个字符修改为\0结束符
     int num = 0;
     while (*buf != '\0')
     {
+        // 定位到命令中每个字符串的第一个非空的字符
         while ((*buf == ' ') || (*buf == '\t' || (*buf == '\n')))
-            *buf++ = '\0'; //该循环是定位到命令中每个字符串的第一个非空的字符
-        *args++ = buf;   //将找到的非空字符串 依次赋值给args［i］。
+            *buf++ = '\0';
+        // 将找到的非空字符串 依次赋值给args[i]
+        *args++ = buf;   
         ++num;
-        while ((*buf != '\0') && (*buf != ' ') && (*buf != '\t') && (*buf != '\n'))//正常的字母就往后移动，直至定位到非空字符后面的第一个空格。
+        // 正常的字母就往后移动，直至定位到非空字符后面的第一个空格。
+        while ((*buf != '\0') && (*buf != ' ') && (*buf != '\t') && (*buf != '\n'))
             buf++;
     }
     *args = '\0';
@@ -34,7 +40,7 @@ void ShowPrompt() {
     char hostname[100] = { 0 };
     gethostname(hostname, sizeof(hostname));
     // 输出提示符
-    printf("-\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", pwd->pw_name, hostname, path);
+    printf("-MyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", pwd->pw_name, hostname, path);
     /*文本着色：
         \033[1;32m 粗体(1)绿色(32)
         \033[0m 清除样式
@@ -179,6 +185,10 @@ int main(void)
         // 解析输入，获取参数和参数的数量
         char* args[64]; //64个参数
         int argnum = parse(buf, args);
+
+        //使用--color=always着色
+        args[argnum]="--color=always";
+        args[argnum+1]='\0';
 
         //两个预设的命令 exit和ver
         if (strcmp(args[0], "exit") == 0)
