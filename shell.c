@@ -5,6 +5,8 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <pwd.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 //拆分参数，忽略双引号
 int parse(char* buf, char** args)
@@ -28,34 +30,12 @@ int parse(char* buf, char** args)
     *args = '\0';
     return num;
 }
-//显示提示符
-void ShowPrompt() {
-    //获取绝对路径，存放在path中
-    char path[1024];
-    getcwd(path, sizeof(path));
-    //获取pwd信息
-    struct passwd* pwd;
-    pwd = getpwuid(getuid());
-    //获得主机名
-    char hostname[100] = { 0 };
-    gethostname(hostname, sizeof(hostname));
-    // 输出提示符
-    // printf("\033[1;35mMyShell@\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", pwd->pw_name, hostname, path);
-    //未着色
-    printf("MyShell@%s@%s:%s$ ", pwd->pw_name, hostname, path);
-    /*着色：
-        \033[1;32m 粗体(1)绿色(32)
-        \033[0m 清除样式
-        \033[1;34m 粗体(1)蓝色(34)
-        \033[1;35m 粗体(1)品红(35)
-    */
-}
 
 //执行普通命令
 void Exec(char* args[]) {
     //通过 fork 创建一个子进程
     pid_t  pid;
-    if ((pid = fork()) < 0) //fork 
+    if ((pid = fork()) < 0)
     {
         printf("fork error,please reput command\n");
         return;
@@ -163,27 +143,22 @@ void ExecvPipe(char* args1[], char* args2[])
 
 int main(void)
 {
+    //按下TAB自动补全
+    rl_bind_key('\t', rl_complete);
     while (1)
     {
         //显示提示符
-        ShowPrompt();
+        char hostname[100] = { 0 };
+        gethostname(hostname, sizeof(hostname));
+
+        char shell_prompt[200];
+        snprintf(shell_prompt, sizeof(shell_prompt), "MyShell@%s@%s:%s$ ", getenv("USER"), hostname, getcwd(NULL,1024));
+        // snprintf(shell_prompt, sizeof(shell_prompt), "\033[1;35mMyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", getenv("USER"), hostname, getcwd(NULL,1024));
 
         // 获取用户输入
-        char buf[4096];
-        char* rt = fgets(buf, 4096, stdin);
-        if (rt == NULL)
-        {
-            printf("fgets error\n");
-            exit(1);
-        }
-
-        // 只输入了回车键
-        if (!strcmp(buf, "\n"))
-            continue;
-
-        // 去掉换行
-        if (buf[strlen(buf) - 1] == '\n')
-            buf[strlen(buf) - 1] = 0;
+        char *buf;
+        buf = readline(shell_prompt);
+        add_history(buf);
 
         // 解析输入，获取参数和参数的数量
         char* args[64]; //64个参数
@@ -193,12 +168,14 @@ int main(void)
         // args[argnum]="--color=always";
         // args[argnum+1]='\0';
 
-        //两个预设的命令 exit和ver
         if (strcmp(args[0], "exit") == 0)
             exit(0);
         else if (strcmp(args[0], "ver") == 0)
             printf("mysh version 1.0, Written by ABC\n");
-        //执行其他的命令
+        else if (strcmp(args[0], "alias") == 0)
+            printf("Not implemented\n");
+        else if (strcmp(args[0], "unalias") == 0)
+            printf("Not implemented\n");
         else
         {
             if(IsPipe(args)>0){
@@ -209,6 +186,7 @@ int main(void)
             }
             else Exec(args);
         }
+        free(buf);
     }
 
     exit(0);
