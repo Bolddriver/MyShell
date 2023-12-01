@@ -40,11 +40,14 @@ void ShowPrompt() {
     char hostname[100] = { 0 };
     gethostname(hostname, sizeof(hostname));
     // 输出提示符
-    printf("-MyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", pwd->pw_name, hostname, path);
-    /*文本着色：
+    // printf("\033[1;35mMyShell@\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", pwd->pw_name, hostname, path);
+    //未着色
+    printf("MyShell@%s@%s:%s$ ", pwd->pw_name, hostname, path);
+    /*着色：
         \033[1;32m 粗体(1)绿色(32)
         \033[0m 清除样式
         \033[1;34m 粗体(1)蓝色(34)
+        \033[1;35m 粗体(1)品红(35)
     */
 }
 
@@ -187,8 +190,8 @@ int main(void)
         int argnum = parse(buf, args);
 
         //使用--color=always着色
-        args[argnum]="--color=always";
-        args[argnum+1]='\0';
+        // args[argnum]="--color=always";
+        // args[argnum+1]='\0';
 
         //两个预设的命令 exit和ver
         if (strcmp(args[0], "exit") == 0)
