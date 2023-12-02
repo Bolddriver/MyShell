@@ -6,10 +6,11 @@
 #include <sys/stat.h>
 #include <pwd.h>
 #include <readline/readline.h>
-#include <readline/history.h>
+#include <readline/history.h> //用于实现命令列表和命令补全
 
-#define MAX_ALIAS 100
-int AliasCount = 0;
+#define MAX_ALIAS 100 //最多能设置的别名数量
+#define LEN_ALIAS 20 //别名的长度
+int AliasCount = 0; //已经设置的别名数量
 struct Aliases {
     char* Key;
     char* Value;
@@ -246,8 +247,8 @@ void Alias(char* args[]){
         // 有参数，依次处理每一个参数
         for(int i=1;args[i]!=NULL;i++){
             //检查参数中有无等号
-            char AKey[20]; //键
-            char AValue[20]; //值
+            char AKey[LEN_ALIAS]; //键
+            char AValue[LEN_ALIAS]; //值
             //有等号，添加别名
             if(ParseEquality(args[i],AKey,AValue)==0){
                 if(findAlias(AKey)==NULL)
@@ -279,8 +280,32 @@ void UnAlias(char* args[]){
     }
 }
 
+void LoadAlias(){
+    FILE* fp = fopen("./alias.txt", "a+");
+    char line1[LEN_ALIAS]; // 键
+    char line2[LEN_ALIAS]; // 值
+
+    while (fgets(line1, sizeof(line1), fp) != NULL && fgets(line2, sizeof(line2), fp) != NULL) {
+        line1[strlen(line1)-1]='\0';
+        line2[strlen(line2)-1]='\0';
+        if(findAlias(line1)==NULL)
+            addAlias(line1,line2);
+        else updateAlias(line1,line2);
+    }
+    fclose(fp);
+}
+
+void SaveAlias(){
+    FILE* fp = fopen("./alias.txt", "a");
+    for (int i = 0; i < AliasCount; i++) {
+        fprintf(fp,"%s\n%s\n",aliases[i].Key,aliases[i].Value);
+    }
+    fclose(fp);
+}
+
 int main(void)
 {
+    LoadAlias();
     //按下TAB自动补全
     rl_bind_key('\t', rl_complete);
     while (1)
@@ -307,7 +332,7 @@ int main(void)
         // args[argnum+1]='\0';
 
         if (strcmp(args[0], "exit") == 0)
-            exit(0);
+            break;
         else if (strcmp(args[0], "ver") == 0)
             printf("mysh version 1.0, Written by ABC\n");
         else if (strcmp(args[0], "alias") == 0)
@@ -336,6 +361,9 @@ int main(void)
         }
         free(buf);
     }
+
+    
+    SaveAlias();
 
     exit(0);
     return 0;
