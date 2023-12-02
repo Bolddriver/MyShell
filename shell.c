@@ -17,7 +17,7 @@ struct Aliases {
 } aliases[MAX_ALIAS];
 
 // 添加别名
-void addAlias( char* key,  char* value) {
+void addAlias(char* key, char* value) {
     if (AliasCount < MAX_ALIAS) {
         aliases[AliasCount].Key = (char*)malloc(strlen(key) + 1);
         aliases[AliasCount].Value = (char*)malloc(strlen(value) + 1);
@@ -26,16 +26,18 @@ void addAlias( char* key,  char* value) {
             strcpy(aliases[AliasCount].Key, key);
             strcpy(aliases[AliasCount].Value, value);
             AliasCount++;
-        } else {
+        }
+        else {
             printf("内存分配失败，无法添加别名。\n");
         }
-    } else {
+    }
+    else {
         printf("别名存储空间已满，无法添加。\n");
     }
 }
 
 // 根据键查找别名
-char* findAlias( char* key) {
+char* findAlias(char* key) {
     for (int i = 0; i < AliasCount; i++) {
         if (strcmp(aliases[i].Key, key) == 0) {
             return aliases[i].Value;
@@ -45,7 +47,7 @@ char* findAlias( char* key) {
 }
 
 // 根据键删除别名
-void deleteAlias( char* key) {
+void deleteAlias(char* key) {
     for (int i = 0; i < AliasCount; i++) {
         if (strcmp(aliases[i].Key, key) == 0) {
             free(aliases[i].Key);
@@ -61,7 +63,7 @@ void deleteAlias( char* key) {
 }
 
 // 更新别名的值
-void updateAlias( char* key,  char* newValue) {
+void updateAlias(char* key, char* newValue) {
     for (int i = 0; i < AliasCount; i++) {
         if (strcmp(aliases[i].Key, key) == 0) {
             free(aliases[i].Value);
@@ -69,7 +71,8 @@ void updateAlias( char* key,  char* newValue) {
 
             if (aliases[i].Value) {
                 strcpy(aliases[i].Value, newValue);
-            } else {
+            }
+            else {
                 printf("内存分配失败，无法更新别名。\n");
             }
             return;
@@ -91,19 +94,19 @@ int parse(char* buf, char** args)
         while ((*buf == ' ') || (*buf == '\t' || (*buf == '\n')))
             *buf++ = '\0';
         // 将找到的非空字符串 依次赋值给args[i]
-        *args++ = buf;   
+        *args++ = buf;
         ++num;
         // 正常的字母就往后移动，直至定位到非空字符后面的第一个空格。
-        while ((*buf != '\0') && (*buf != ' ') && (*buf != '\t') && (*buf != '\n')){
+        while ((*buf != '\0') && (*buf != ' ') && (*buf != '\t') && (*buf != '\n')) {
             // 确保正确识别被双引号包裹的参数
-            if(*buf=='"'){
+            if (*buf == '"') {
                 buf++;
-                while(*buf!='"')
+                while (*buf != '"')
                     buf++;
             }
             buf++;
         }
-            
+
     }
     *args = '\0';
     return num;
@@ -184,32 +187,36 @@ void ExecvPipe(char* args1[], char* args2[])
     // 父进程创建子进程1
     pid1 = fork();
 
-    if (pid1 == -1){ //创建失败
+    if (pid1 == -1) { //创建失败
         perror("fork");
         exit(EXIT_FAILURE);
-    } else if (pid1 == 0){
+    }
+    else if (pid1 == 0) {
         // 子进程1：标准输出重定向到写端，执行命令args1
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
-        execvp(*args1,args1);
+        execvp(*args1, args1);
         perror("execvp args1");
         exit(EXIT_FAILURE);
-    } else {
+    }
+    else {
         // 父进程创建子进程2
         pid2 = fork();
-        if (pid2 == -1){ //创建失败
+        if (pid2 == -1) { //创建失败
             perror("fork");
             exit(EXIT_FAILURE);
-        } else if (pid2 == 0){
+        }
+        else if (pid2 == 0) {
             // 子进程2：标准输入重定向到管道读端，执行命令args2
             close(pipefd[1]);
             dup2(pipefd[0], STDIN_FILENO);
             close(pipefd[0]);
-            execvp(*args2,args2);
+            execvp(*args2, args2);
             perror("execvp grep");
             exit(EXIT_FAILURE);
-        } else {
+        }
+        else {
             // 父进程关闭管道，等待子进程结束
             close(pipefd[0]);
             close(pipefd[1]);
@@ -220,7 +227,7 @@ void ExecvPipe(char* args1[], char* args2[])
 }
 
 // 拆分等式
-int ParseEquality(char* input, char* key, char* value){
+int ParseEquality(char* input, char* key, char* value) {
     char* ptr = strchr(input, '=');
     if (ptr != NULL) {
         size_t keyLength = ptr - input; // 计算键的长度
@@ -234,32 +241,32 @@ int ParseEquality(char* input, char* key, char* value){
 }
 
 // 别名
-void Alias(char* args[]){
+void Alias(char* args[]) {
     // 1.拆分命令和参数（已经拆分好）
     // 2.检查有无参数
-    if(args[1]==NULL){
+    if (args[1] == NULL) {
         // 无参数，输出所有别名
         for (int i = 0; i < AliasCount; i++) {
-            printf("%s=%s\n",aliases[i].Key,aliases[i].Value);
+            printf("%s=%s\n", aliases[i].Key, aliases[i].Value);
         }
     }
     else {
         // 有参数，依次处理每一个参数
-        for(int i=1;args[i]!=NULL;i++){
+        for (int i = 1;args[i] != NULL;i++) {
             //检查参数中有无等号
             char AKey[LEN_ALIAS]; //键
             char AValue[LEN_ALIAS]; //值
             //有等号，添加别名
-            if(ParseEquality(args[i],AKey,AValue)==0){
-                if(findAlias(AKey)==NULL)
-                    addAlias(AKey,AValue);
-                else updateAlias(AKey,AValue);
+            if (ParseEquality(args[i], AKey, AValue) == 0) {
+                if (findAlias(AKey) == NULL)
+                    addAlias(AKey, AValue);
+                else updateAlias(AKey, AValue);
             }
             //没有等号，查询别名
             else {
                 char* result = findAlias(args[i]);
-                if(result!=NULL){
-                    printf("%s=%s\n",args[i],result);
+                if (result != NULL) {
+                    printf("%s=%s\n", args[i], result);
                 }
             }
         }
@@ -267,38 +274,38 @@ void Alias(char* args[]){
 }
 
 //取消别名
-void UnAlias(char* args[]){
-    if(args[1]==NULL){
+void UnAlias(char* args[]) {
+    if (args[1] == NULL) {
         // 无参数，输出用法
         printf("unalias: usage: unalias [-a] name [name ...]\n");
     }
     else {
         // 有参数，依次处理每一个参数
-        for(int i=1;args[i]!=NULL;i++){
+        for (int i = 1;args[i] != NULL;i++) {
             deleteAlias(args[i]);
         }
     }
 }
 
-void LoadAlias(){
+void LoadAlias() {
     FILE* fp = fopen("./alias.txt", "a+");
     char line1[LEN_ALIAS]; // 键
     char line2[LEN_ALIAS]; // 值
 
     while (fgets(line1, sizeof(line1), fp) != NULL && fgets(line2, sizeof(line2), fp) != NULL) {
-        line1[strlen(line1)-1]='\0';
-        line2[strlen(line2)-1]='\0';
-        if(findAlias(line1)==NULL)
-            addAlias(line1,line2);
-        else updateAlias(line1,line2);
+        line1[strlen(line1) - 1] = '\0';
+        line2[strlen(line2) - 1] = '\0';
+        if (findAlias(line1) == NULL)
+            addAlias(line1, line2);
+        else updateAlias(line1, line2);
     }
     fclose(fp);
 }
 
-void SaveAlias(){
+void SaveAlias() {
     FILE* fp = fopen("./alias.txt", "a");
     for (int i = 0; i < AliasCount; i++) {
-        fprintf(fp,"%s\n%s\n",aliases[i].Key,aliases[i].Value);
+        fprintf(fp, "%s\n%s\n", aliases[i].Key, aliases[i].Value);
     }
     fclose(fp);
 }
@@ -315,11 +322,11 @@ int main(void)
         gethostname(hostname, sizeof(hostname));
 
         char shell_prompt[200];
-        snprintf(shell_prompt, sizeof(shell_prompt), "MyShell@%s@%s:%s$ ", getenv("USER"), hostname, getcwd(NULL,1024));
+        snprintf(shell_prompt, sizeof(shell_prompt), "MyShell@%s@%s:%s$ ", getenv("USER"), hostname, getcwd(NULL, 1024));
         // snprintf(shell_prompt, sizeof(shell_prompt), "\033[1;35mMyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", getenv("USER"), hostname, getcwd(NULL,1024));
 
         // 获取用户输入
-        char *buf;
+        char* buf;
         buf = readline(shell_prompt);
         add_history(buf);
 
@@ -342,27 +349,27 @@ int main(void)
         else
         {
             // 执行前把别名替换成原名
-            if(IsPipe(args)>0){
+            if (IsPipe(args) > 0) {
                 char* args1[32];
                 char* args2[32];
-                ParsePipe(args,args1,args2);
-                if(findAlias(args1[0])!=NULL){
-                    strcpy(args1[0],findAlias(args1[0]));
+                ParsePipe(args, args1, args2);
+                if (findAlias(args1[0]) != NULL) {
+                    strcpy(args1[0], findAlias(args1[0]));
                 }
                 // printf("%s %s\n",args1[0],args2[0]);
-                ExecvPipe(args1,args2);
+                ExecvPipe(args1, args2);
             }
-            else{
-                if(findAlias(args[0])!=NULL){
-                    strcpy(args[0],findAlias(args[0]));
+            else {
+                if (findAlias(args[0]) != NULL) {
+                    strcpy(args[0], findAlias(args[0]));
                 }
                 Exec(args);
-            } 
+            }
         }
         free(buf);
     }
 
-    
+
     SaveAlias();
 
     exit(0);
