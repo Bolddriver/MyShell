@@ -8,6 +8,75 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+#define MAX_ALIAS 100
+int AliasCount = 0;
+struct Aliases {
+    char* Key;
+    char* Value;
+} aliases[MAX_ALIAS];
+
+// 添加别名
+void addAlias( char* key,  char* value) {
+    if (AliasCount < MAX_ALIAS) {
+        aliases[AliasCount].Key = (char*)malloc(strlen(key) + 1);
+        aliases[AliasCount].Value = (char*)malloc(strlen(value) + 1);
+
+        if (aliases[AliasCount].Key && aliases[AliasCount].Value) {
+            strcpy(aliases[AliasCount].Key, key);
+            strcpy(aliases[AliasCount].Value, value);
+            AliasCount++;
+        } else {
+            printf("内存分配失败，无法添加别名。\n");
+        }
+    } else {
+        printf("别名存储空间已满，无法添加。\n");
+    }
+}
+
+// 根据键查找别名
+char* findAlias( char* key) {
+    for (int i = 0; i < AliasCount; i++) {
+        if (strcmp(aliases[i].Key, key) == 0) {
+            return aliases[i].Value;
+        }
+    }
+    return NULL; // 如果未找到返回空指针
+}
+
+// 根据键删除别名
+void deleteAlias( char* key) {
+    for (int i = 0; i < AliasCount; i++) {
+        if (strcmp(aliases[i].Key, key) == 0) {
+            free(aliases[i].Key);
+            free(aliases[i].Value);
+
+            // 将最后一个别名移到当前位置，然后减少别名数量
+            aliases[i] = aliases[AliasCount - 1];
+            AliasCount--;
+            return;
+        }
+    }
+    printf("未找到别名，无法删除。\n");
+}
+
+// 更新别名的值
+void updateAlias( char* key,  char* newValue) {
+    for (int i = 0; i < AliasCount; i++) {
+        if (strcmp(aliases[i].Key, key) == 0) {
+            free(aliases[i].Value);
+            aliases[i].Value = (char*)malloc(strlen(newValue) + 1);
+
+            if (aliases[i].Value) {
+                strcpy(aliases[i].Value, newValue);
+            } else {
+                printf("内存分配失败，无法更新别名。\n");
+            }
+            return;
+        }
+    }
+    printf("未找到别名，无法更新。\n");
+}
+
 //拆分参数，忽略双引号
 int parse(char* buf, char** args)
 {
@@ -141,6 +210,67 @@ void ExecvPipe(char* args1[], char* args2[])
     }
 }
 
+// 拆分等式
+int ParseEquality(char* input, char* key, char* value){
+    char* ptr = strchr(input, '=');
+    if (ptr != NULL) {
+        size_t keyLength = ptr - input; // 计算键的长度
+        strncpy(key, input, keyLength);
+        key[keyLength] = '\0'; // 手动添加字符串结束符
+        strcpy(value, ptr + 1);
+        printf("Key: %s, Value: %s\n", key, value);
+        return 0;
+    }
+    else return 1;
+}
+
+// 别名
+void Alias(char* args[]){
+    // 1.拆分命令和参数（已经拆分好）
+    // 2.检查有无参数
+    if(args[1]==NULL){
+        // 无参数，输出所有别名
+        for (int i = 0; i < AliasCount; i++) {
+            printf("%s=%s\n",aliases[i].Key,aliases[i].Value);
+        }
+    }
+    else {
+        // 有参数，依次处理每一个参数
+        for(int i=1;args[i]!=NULL;i++){
+            //检查参数中有无等号
+            char AKey[20]; //键
+            char AValue[20]; //值
+            //有等号，添加别名
+            if(ParseEquality(args[i],AKey,AValue)==0){
+                if(findAlias(AKey)==NULL)
+                    addAlias(AKey,AValue);
+                else updateAlias(AKey,AValue);
+            }
+            //没有等号，查询别名
+            else {
+                char* result = findAlias(args[i]);
+                if(result!=NULL){
+                    printf("%s=%s\n",args[i],result);
+                }
+            }
+        }
+    }
+}
+
+//取消别名
+void UnAlias(char* args[]){
+    if(args[1]==NULL){
+        // 无参数，输出用法
+        printf("unalias: usage: unalias [-a] name [name ...]\n");
+    }
+    else {
+        // 有参数，依次处理每一个参数
+        for(int i=1;args[i]!=NULL;i++){
+            deleteAlias(args[i]);
+        }
+    }
+}
+
 int main(void)
 {
     //按下TAB自动补全
@@ -161,7 +291,7 @@ int main(void)
         add_history(buf);
 
         // 解析输入，获取参数和参数的数量
-        char* args[64]; //64个参数
+        char* args[64]; //64个命令和参数
         int argnum = parse(buf, args);
 
         //使用--color=always着色
@@ -173,18 +303,28 @@ int main(void)
         else if (strcmp(args[0], "ver") == 0)
             printf("mysh version 1.0, Written by ABC\n");
         else if (strcmp(args[0], "alias") == 0)
-            printf("Not implemented\n");
+            Alias(args);
         else if (strcmp(args[0], "unalias") == 0)
-            printf("Not implemented\n");
+            UnAlias(args);
         else
         {
+            // 执行前把别名替换成原名
             if(IsPipe(args)>0){
                 char* args1[32];
                 char* args2[32];
                 ParsePipe(args,args1,args2);
+                if(findAlias(args1[0])!=NULL){
+                    strcpy(args1[0],findAlias(args1[0]));
+                }
+                // printf("%s %s\n",args1[0],args2[0]);
                 ExecvPipe(args1,args2);
             }
-            else Exec(args);
+            else{
+                if(findAlias(args[0])!=NULL){
+                    strcpy(args[0],findAlias(args[0]));
+                }
+                Exec(args);
+            } 
         }
         free(buf);
     }
