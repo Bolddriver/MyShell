@@ -93,8 +93,16 @@ int parse(char* buf, char** args)
         *args++ = buf;   
         ++num;
         // 正常的字母就往后移动，直至定位到非空字符后面的第一个空格。
-        while ((*buf != '\0') && (*buf != ' ') && (*buf != '\t') && (*buf != '\n'))
+        while ((*buf != '\0') && (*buf != ' ') && (*buf != '\t') && (*buf != '\n')){
+            // 确保正确识别被双引号包裹的参数
+            if(*buf=='"'){
+                buf++;
+                while(*buf!='"')
+                    buf++;
+            }
             buf++;
+        }
+            
     }
     *args = '\0';
     return num;
