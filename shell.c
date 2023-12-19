@@ -216,8 +216,8 @@ int main(void)
         gethostname(hostname, sizeof(hostname));
 
         char shell_prompt[200];
-        snprintf(shell_prompt, sizeof(shell_prompt), "MyShell@%s@%s:%s$ ", getenv("USER"), hostname, getcwd(NULL, 1024));
-        // snprintf(shell_prompt, sizeof(shell_prompt), "\033[1;35mMyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", getenv("USER"), hostname, getcwd(NULL,1024));
+        // snprintf(shell_prompt, sizeof(shell_prompt), "MyShell@%s@%s:%s$ ", getenv("USER"), hostname, getcwd(NULL, 1024));
+        snprintf(shell_prompt, sizeof(shell_prompt), "\033[1;35mMyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", getenv("USER"), hostname, getcwd(NULL,1024));
 
         // 获取用户输入
         char* buf;
@@ -238,16 +238,18 @@ int main(void)
         if (strcmp(args[0], "exit") == 0)
             break;
         else if (strcmp(args[0], "ver") == 0)
-            printf("mysh version 1.0, Written by ABC\n");
+            printf("MyShell version 1.0, written by Bolddriver. Made by heart.\n");
         else if (strcmp(args[0], "alias") == 0)
             Alias(args);
         else if (strcmp(args[0], "unalias") == 0)
             UnAlias(args);
+        else if (strcmp(args[0], "cd") == 0) //更改工作目录
+            chdir(args[1]);
         else
         {
             // 执行前把别名替换成原名
             if (findAlias(args[0]) != NULL) {
-                    strcpy(args[0], findAlias(args[0]));
+                strcpy(args[0], findAlias(args[0]));
             }
             nExecPipe(args);
             
