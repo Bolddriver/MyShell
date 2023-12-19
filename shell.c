@@ -85,146 +85,37 @@ void updateAlias(char* key, char* newValue) {
 //拆分参数，忽略双引号
 int parse(char* buf, char** args)
 {
+    // 对于不包含引号的命令：
     // 遍历要解析的命令的每个字符，
     // 把命令的每个参数的第一个字符的地址赋值给args数组
-    // 把每个参数的最后一个字符的下一个字符修改为\0结束符
+    // 把参数之间的分隔符修改为\0结束符
+    // args是指向buf的指针。在buf中，把每一个空格、制表符、换行符改成了\0，把buf分割成多个字符串
     int num = 0;
     while (buf!=NULL && *buf != '\0')
     {
         // 定位到命令中每个字符串的第一个非空的字符
         while ((*buf == ' ') || (*buf == '\t' || (*buf == '\n')))
             *buf++ = '\0';
-        // 将找到的非空字符串 依次赋值给args[i]
-        *args++ = buf;
-        ++num;
+
+        // args[i]赋值为当前状态下buf的地址
+        *args = buf;
         // 正常的字母就往后移动，直至定位到非空字符后面的第一个空格。
         while ((*buf != '\0') && (*buf != ' ') && (*buf != '\t') && (*buf != '\n')) {
             // 确保正确识别被双引号包裹的参数
-            if (*buf == '"') {
-                buf++;
-                while (*buf != '"')
+            if (*buf == '"') { //读取到第一个双引号时
+                buf++; //跳过这个双引号
+                *args=buf; //args[i]的地址改成双引号后的字符的地址
+                while (*buf != '"') //后移，直到读取到第二个双引号
                     buf++;
+                *buf = '\0'; //在buf中删掉第二个双引号
             }
             buf++;
         }
-
+        *args++; //args后移，准备读取下一条命令
+        num++; //命令计数器增加
     }
     *args = '\0';
     return num;
-}
-
-//执行普通命令
-void Exec(char* args[]) {
-    //通过 fork 创建一个子进程
-    pid_t  pid;
-    if ((pid = fork()) < 0)
-    {
-        printf("fork error,please reput command\n");
-        return;
-    }
-    else if (pid == 0)
-    {
-        //child
-        //execvp在当前进程中执行一个新的程序
-        execvp(*args, args);
-        //execvp执行失败则执行下面的语句
-        printf("couldn't execute: %s\n", args[0]);
-        exit(127);
-    }
-
-    //parent
-    int status;
-    if ((pid = waitpid(pid, &status, 0)) < 0)
-        printf("waitpid error\n");
-}
-//判断是否是管道命令
-int IsPipe(char* args[])
-{
-    int i = 0;
-    while (args[i] != NULL)
-    {
-        if (strcmp(args[i], "|") == 0)
-        {
-            return i + 1; //i是管道，则i+1就是管道的下一个命令
-        }
-        ++i;
-    }
-    return 0;
-}
-//从|拆分管道命令
-void ParsePipe(char* input[], char* output1[], char* output2[])
-{
-    int i = 0;
-    int size1 = 0;
-    int size2 = 0;
-    int ret = IsPipe(input);
-
-    while (strcmp(input[i], "|") != 0)
-    {
-        output1[size1++] = input[i++];
-    }
-    output1[size1] = NULL;
-
-    int j = ret;//j指向管道的后面那个字符
-    while (input[j] != NULL)
-    {
-        output2[size2++] = input[j++];
-    }
-
-    output2[size2] = NULL;
-}
-//执行管道命令
-void ExecPipe(char* args1[], char* args2[])
-{
-    int pipefd[2]; //管道
-    pid_t pid1, pid2; //子进程
-
-    // 创建管道
-    if (pipe(pipefd) == -1) {
-        perror("pipe");
-        exit(EXIT_FAILURE);
-    }
-
-    // 父进程创建子进程1
-    pid1 = fork();
-
-    if (pid1 == -1) { //创建失败
-        perror("fork");
-        exit(EXIT_FAILURE);
-    }
-    else if (pid1 == 0) {
-        // 子进程1：标准输出重定向到写端，执行命令args1
-        close(pipefd[0]);
-        dup2(pipefd[1], STDOUT_FILENO);
-        close(pipefd[1]);
-        execvp(*args1, args1);
-        perror("execvp args1");
-        exit(EXIT_FAILURE);
-    }
-    else {
-        // 父进程创建子进程2
-        pid2 = fork();
-        if (pid2 == -1) { //创建失败
-            perror("fork");
-            exit(EXIT_FAILURE);
-        }
-        else if (pid2 == 0) {
-            // 子进程2：标准输入重定向到管道读端，执行命令args2
-            close(pipefd[1]);
-            dup2(pipefd[0], STDIN_FILENO);
-            close(pipefd[0]);
-            execvp(*args2, args2);
-            perror("execvp grep");
-            exit(EXIT_FAILURE);
-        }
-        else {
-            // 父进程关闭管道，等待子进程结束
-            close(pipefd[0]);
-            close(pipefd[1]);
-            wait(NULL);
-            wait(NULL);
-        }
-    }
 }
 
 // 拆分等式
@@ -360,36 +251,10 @@ int main(void)
             }
             nExecPipe(args);
             
-            #if 0
-            if (IsPipe(args) > 0) {
-                nExecPipe(args);
-                #if 0
-                char* args1[32];
-                char* args2[32];
-                ParsePipe(args, args1, args2);
-                if (findAlias(args1[0]) != NULL) {
-                    strcpy(args1[0], findAlias(args1[0]));
-                }
-                // printf("%s %s\n",args1[0],args2[0]);
-                ExecPipe(args1, args2);
-                #endif
-            }
-            else {
-                if (findAlias(args[0]) != NULL) {
-                    strcpy(args[0], findAlias(args[0]));
-                }
-                // Exec(args);
-                nExecPipe(args);
-            }
-            #endif
         }
         free(buf);
-        // dup2(STDOUT_FILENO,STDIN_FILENO); // 把标准输入重定向到屏幕
     }
-
-
     SaveAlias();
-
     exit(0);
     return 0;
 }
