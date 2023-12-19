@@ -7,6 +7,7 @@
 #include <pwd.h>
 #include <readline/readline.h>
 #include <readline/history.h> //用于实现命令列表和命令补全
+#include <fcntl.h>
 
 #define MAX_ALIAS 100 //最多能设置的别名数量
 #define LEN_ALIAS 20 //别名的长度
@@ -88,7 +89,7 @@ int parse(char* buf, char** args)
     // 把命令的每个参数的第一个字符的地址赋值给args数组
     // 把每个参数的最后一个字符的下一个字符修改为\0结束符
     int num = 0;
-    while (*buf != '\0')
+    while (buf!=NULL && *buf != '\0')
     {
         // 定位到命令中每个字符串的第一个非空的字符
         while ((*buf == ' ') || (*buf == '\t' || (*buf == '\n')))
@@ -173,7 +174,7 @@ void ParsePipe(char* input[], char* output1[], char* output2[])
     output2[size2] = NULL;
 }
 //执行管道命令
-void ExecvPipe(char* args1[], char* args2[])
+void ExecPipe(char* args1[], char* args2[])
 {
     int pipefd[2]; //管道
     pid_t pid1, pid2; //子进程
@@ -310,6 +311,8 @@ void SaveAlias() {
     fclose(fp);
 }
 
+void nExecPipe(char* args[]);
+
 int main(void)
 {
     LoadAlias();
@@ -328,6 +331,9 @@ int main(void)
         // 获取用户输入
         char* buf;
         buf = readline(shell_prompt);
+        while(buf==NULL || strcmp(buf,"")==0){
+            buf = readline(shell_prompt);
+        }
         add_history(buf);
 
         // 解析输入，获取参数和参数的数量
@@ -349,7 +355,15 @@ int main(void)
         else
         {
             // 执行前把别名替换成原名
+            if (findAlias(args[0]) != NULL) {
+                    strcpy(args[0], findAlias(args[0]));
+            }
+            nExecPipe(args);
+            
+            #if 0
             if (IsPipe(args) > 0) {
+                nExecPipe(args);
+                #if 0
                 char* args1[32];
                 char* args2[32];
                 ParsePipe(args, args1, args2);
@@ -357,16 +371,20 @@ int main(void)
                     strcpy(args1[0], findAlias(args1[0]));
                 }
                 // printf("%s %s\n",args1[0],args2[0]);
-                ExecvPipe(args1, args2);
+                ExecPipe(args1, args2);
+                #endif
             }
             else {
                 if (findAlias(args[0]) != NULL) {
                     strcpy(args[0], findAlias(args[0]));
                 }
-                Exec(args);
+                // Exec(args);
+                nExecPipe(args);
             }
+            #endif
         }
         free(buf);
+        // dup2(STDOUT_FILENO,STDIN_FILENO); // 把标准输入重定向到屏幕
     }
 
 
@@ -376,4 +394,100 @@ int main(void)
     return 0;
 }
 
+
+
+void nExecPipe(char* args[]) {
+    // 保存当前的文件描述符
+    int saved_stdout = dup(STDOUT_FILENO);
+    int saved_stdin = dup(STDIN_FILENO);
+
+    int npid = 1;
+    for (int i = 0; args[i] != NULL; i++) {
+        if (strcmp(args[i], "|") == 0) {
+            npid++;
+        }
+    }
+
+    int iargs = 0;
+    int pipefds[npid - 1][2]; // 为每个管道创建文件描述符
+
+    for (int i = 0; i < npid; i++) {
+        char* carg[32]; //当前进程要执行的命令和参数
+        int icarg = 0;
+        // 拆分命令
+        while (args[iargs] != NULL && strcmp(args[iargs], "|") != 0) {
+            if (strcmp(args[iargs], "<") == 0) {
+                // 输入重定向
+                iargs++;
+                int fd = open(args[iargs], O_RDONLY);
+                dup2(fd, STDIN_FILENO);
+                close(fd);
+            } else if (strcmp(args[iargs], ">") == 0) {
+                // 输出重定向（覆盖写）
+                iargs++;
+                int fd = open(args[iargs], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            } else if (strcmp(args[iargs], ">>") == 0) {
+                // 输出重定向（追加写）
+                iargs++;
+                int fd = open(args[iargs], O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            } else {
+                carg[icarg] = args[iargs];
+                icarg++;
+            }
+            iargs++;
+        }
+        carg[icarg] = NULL;
+
+        if (i < npid - 1) {
+            if (pipe(pipefds[i]) == -1) {
+                perror("pipe");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        pid_t pid = fork();
+        if (pid == -1) { //创建失败
+            printf("errorfork\n");
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (pid == 0) { //在子进程中
+            if (i > 0) { // 不是第一个命令
+                dup2(pipefds[i - 1][0], STDIN_FILENO);
+                close(pipefds[i - 1][0]);
+                close(pipefds[i - 1][1]);
+            }
+            if (i < npid - 1) { // 不是最后一个命令
+                close(pipefds[i][0]);
+                dup2(pipefds[i][1], STDOUT_FILENO);
+                close(pipefds[i][1]);
+            }
+
+            execvp(carg[0], carg);
+            perror("execvp");
+            exit(EXIT_FAILURE);
+        } else { //父进程
+            if (i > 0) { // 不是第一个命令
+                close(pipefds[i - 1][0]);
+                close(pipefds[i - 1][1]);
+            }
+            wait(NULL);
+
+            // 恢复文件描述符
+            fflush(stdout);
+            fflush(stdin);
+            dup2(saved_stdout, STDOUT_FILENO);
+            dup2(saved_stdin, STDIN_FILENO);
+            fflush(stdout);
+            fflush(stdin);
+        }
+        
+        if (args[iargs] != NULL) {
+            iargs++; // 跳过管道符号
+        }
+    }
+}
 
