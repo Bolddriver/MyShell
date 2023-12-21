@@ -9,6 +9,12 @@
 #include <readline/history.h> //用于实现命令列表和命令补全
 #include <fcntl.h>
 
+// 定义ANSI转义序列，用于为提示符着色
+#define ANSI_COLOR_RESET   "\001\033[0m\002" //重置样式
+#define ANSI_COLOR_MAGENTA_BOLD "\001\033[1;35m\002" //品红色粗体
+#define ANSI_COLOR_GREEN_BOLD  "\001\033[1;32m\002" //绿色粗体
+#define ANSI_COLOR_BLUE_BOLD "\001\033[1;34m\002" //蓝色粗体
+
 #define MAX_ALIAS 100 //最多能设置的别名数量
 #define LEN_ALIAS 20 //别名的长度
 int AliasCount = 0; //已经设置的别名数量
@@ -118,7 +124,7 @@ int parse(char* buf, char** args)
     return num;
 }
 
-// 拆分等式
+// 拆分等式：在添加别名时使用
 int ParseEquality(char* input, char* key, char* value) {
     char* ptr = strchr(input, '=');
     if (ptr != NULL) {
@@ -179,6 +185,7 @@ void UnAlias(char* args[]) {
     }
 }
 
+//加载别名
 void LoadAlias() {
     FILE* fp = fopen("./alias.txt", "a+");
     char line1[LEN_ALIAS]; // 键
@@ -194,6 +201,7 @@ void LoadAlias() {
     fclose(fp);
 }
 
+//保存别名
 void SaveAlias() {
     FILE* fp = fopen("./alias.txt", "a");
     for (int i = 0; i < AliasCount; i++) {
@@ -202,73 +210,13 @@ void SaveAlias() {
     fclose(fp);
 }
 
-void nExecPipe(char* args[]);
-
-int main(void)
-{
-    LoadAlias();
-    //按下TAB自动补全
-    rl_bind_key('\t', rl_complete);
-    while (1)
-    {
-        //显示提示符
-        char hostname[100] = { 0 };
-        gethostname(hostname, sizeof(hostname));
-
-        char shell_prompt[200];
-        // snprintf(shell_prompt, sizeof(shell_prompt), "MyShell@%s@%s:%s$ ", getenv("USER"), hostname, getcwd(NULL, 1024));
-        snprintf(shell_prompt, sizeof(shell_prompt), "\033[1;35mMyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", getenv("USER"), hostname, getcwd(NULL,1024));
-
-        // 获取用户输入
-        char* buf;
-        buf = readline(shell_prompt);
-        while(buf==NULL || strcmp(buf,"")==0){
-            buf = readline(shell_prompt);
-        }
-        add_history(buf);
-
-        // 解析输入，获取参数和参数的数量
-        char* args[64]; //64个命令和参数
-        int argnum = parse(buf, args);
-
-        //使用--color=always着色
-        // args[argnum]="--color=always";
-        // args[argnum+1]='\0';
-
-        if (strcmp(args[0], "exit") == 0)
-            break;
-        else if (strcmp(args[0], "ver") == 0)
-            printf("MyShell version 1.0, written by Bolddriver. Made by heart.\n");
-        else if (strcmp(args[0], "alias") == 0)
-            Alias(args);
-        else if (strcmp(args[0], "unalias") == 0)
-            UnAlias(args);
-        else if (strcmp(args[0], "cd") == 0) //更改工作目录
-            chdir(args[1]);
-        else
-        {
-            // 执行前把别名替换成原名
-            if (findAlias(args[0]) != NULL) {
-                strcpy(args[0], findAlias(args[0]));
-            }
-            nExecPipe(args);
-            
-        }
-        free(buf);
-    }
-    SaveAlias();
-    exit(0);
-    return 0;
-}
-
-
-
-void nExecPipe(char* args[]) {
+//执行命令，包括管道命令和普通命令
+void ExeCmd(char* args[]) {
     // 保存当前的文件描述符
     int saved_stdout = dup(STDOUT_FILENO);
     int saved_stdin = dup(STDIN_FILENO);
 
-    int npid = 1;
+    int npid = 1; //需要创建子进程的数量
     for (int i = 0; args[i] != NULL; i++) {
         if (strcmp(args[i], "|") == 0) {
             npid++;
@@ -358,3 +306,61 @@ void nExecPipe(char* args[]) {
     }
 }
 
+int main(void)
+{
+    LoadAlias();
+    //按下TAB自动补全
+    rl_bind_key('\t', rl_complete);
+    using_history();
+    while (1)
+    {
+        //显示提示符
+        char hostname[100] = { 0 };
+        gethostname(hostname, sizeof(hostname));
+
+        char shell_prompt[200];
+        snprintf(shell_prompt, sizeof(shell_prompt), ANSI_COLOR_MAGENTA_BOLD "MyShell" ANSI_COLOR_GREEN_BOLD "%s@%s" ANSI_COLOR_RESET ":" ANSI_COLOR_BLUE_BOLD "%s" ANSI_COLOR_RESET "$ ", getenv("USER"), hostname, getcwd(NULL,1024));
+        // snprintf(shell_prompt, sizeof(shell_prompt), "\033[1;35mMyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", getenv("USER"), hostname, getcwd(NULL,1024));
+
+        // 获取用户输入
+        char* buf;
+        buf = readline(shell_prompt);
+
+        while(buf==NULL || strcmp(buf,"")==0){
+            buf = readline(shell_prompt);
+        }
+        add_history(buf);
+
+        // 解析输入，获取参数和参数的数量
+        char* args[64]; //64个命令和参数
+        int argnum = parse(buf, args);
+
+        //使用--color=always着色
+        // args[argnum]="--color=always";
+        // args[argnum+1]='\0';
+
+        if (strcmp(args[0], "exit") == 0)
+            break;
+        else if (strcmp(args[0], "ver") == 0)
+            printf("MyShell version 1.0, written by Bolddriver. Made by heart.\n");
+        else if (strcmp(args[0], "alias") == 0)
+            Alias(args);
+        else if (strcmp(args[0], "unalias") == 0)
+            UnAlias(args);
+        else if (strcmp(args[0], "cd") == 0) //更改工作目录
+            chdir(args[1]);
+        else
+        {
+            // 执行前把别名替换成原名
+            if (findAlias(args[0]) != NULL) {
+                strcpy(args[0], findAlias(args[0]));
+            }
+            ExeCmd(args);
+            
+        }
+        free(buf);
+    }
+    SaveAlias();
+    exit(0);
+    return 0;
+}
