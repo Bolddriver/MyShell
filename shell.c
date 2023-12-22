@@ -16,7 +16,7 @@
 #define ANSI_COLOR_BLUE_BOLD "\001\033[1;34m\002" //蓝色粗体
 
 #define MAX_ALIAS 100 //最多能设置的别名数量
-#define LEN_ALIAS 20 //别名的长度
+#define LEN_ALIAS 100 //别名的长度
 int AliasCount = 0; //已经设置的别名数量
 struct Aliases {
     char* Key;
@@ -43,14 +43,14 @@ void addAlias(char* key, char* value) {
     }
 }
 
-// 根据键查找别名
-char* findAlias(char* key) {
+// 根据键查找别名, 返回下标值
+int findAlias(char* key) {
     for (int i = 0; i < AliasCount; i++) {
         if (strcmp(aliases[i].Key, key) == 0) {
-            return aliases[i].Value;
+            return i;
         }
     }
-    return NULL; // 如果未找到返回空指针
+    return -1; // 如果未找到返回-1
 }
 
 // 根据键删除别名
@@ -88,8 +88,9 @@ void updateAlias(char* key, char* newValue) {
     printf("未找到别名，无法更新。\n");
 }
 
-//拆分参数，忽略双引号
-int parse(char* buf, char** args)
+//拆分参数，
+//RmQuotes为1移除双引号；RmSpace为1将空格替换成\0
+int parse(char* buf, char** args, int RmQuotes, int RmSpace)
 {
     // 对于不包含引号的命令：
     // 遍历要解析的命令的每个字符，
@@ -100,8 +101,10 @@ int parse(char* buf, char** args)
     while (buf!=NULL && *buf != '\0')
     {
         // 定位到命令中每个字符串的第一个非空的字符
-        while ((*buf == ' ') || (*buf == '\t' || (*buf == '\n')))
-            *buf++ = '\0';
+        while ((*buf == ' ') || (*buf == '\t' || (*buf == '\n'))){
+            if(RmSpace==1) *buf = '\0';
+            *buf++;
+        }
 
         // args[i]赋值为当前状态下buf的地址
         *args = buf;
@@ -110,17 +113,19 @@ int parse(char* buf, char** args)
             // 确保正确识别被双引号包裹的参数
             if (*buf == '"') { //读取到第一个双引号时
                 buf++; //跳过这个双引号
-                *args=buf; //args[i]的地址改成双引号后的字符的地址
+                if(RmQuotes==1)
+                    *args=buf; //args[i]的地址改成双引号后的字符的地址
                 while (*buf != '"') //后移，直到读取到第二个双引号
                     buf++;
-                *buf = '\0'; //在buf中删掉第二个双引号
+                if(RmQuotes==1)
+                    *buf = '\0'; //在buf中删掉第二个双引号
             }
             buf++;
         }
         *args++; //args后移，准备读取下一条命令
         num++; //命令计数器增加
     }
-    *args = '\0';
+    if(RmSpace==1) *args = '\0';
     return num;
 }
 
@@ -156,15 +161,15 @@ void Alias(char* args[]) {
             char AValue[LEN_ALIAS]; //值
             //有等号，添加别名
             if (ParseEquality(args[i], AKey, AValue) == 0) {
-                if (findAlias(AKey) == NULL)
+                if (findAlias(AKey) == -1)
                     addAlias(AKey, AValue);
                 else updateAlias(AKey, AValue);
             }
             //没有等号，查询别名
             else {
-                char* result = findAlias(args[i]);
-                if (result != NULL) {
-                    printf("%s=%s\n", args[i], result);
+                int result = findAlias(args[i]);
+                if (result != -1) {
+                    printf("%s=%s\n", args[i], aliases[result].Value);
                 }
             }
         }
@@ -194,7 +199,7 @@ void LoadAlias() {
     while (fgets(line1, sizeof(line1), fp) != NULL && fgets(line2, sizeof(line2), fp) != NULL) {
         line1[strlen(line1) - 1] = '\0';
         line2[strlen(line2) - 1] = '\0';
-        if (findAlias(line1) == NULL)
+        if (findAlias(line1) == -1)
             addAlias(line1, line2);
         else updateAlias(line1, line2);
     }
@@ -303,6 +308,27 @@ void ExeCmd(char* args[]) {
     }
 }
 
+//替换别名，参数：原命令，替换别名后的命令
+void ReplaceAlias(char* source, char* result){
+    char* resultargs[64]; //指向result中的每个参数
+    char* sourceargs[64]; //指向source中的每个参数
+    int amount=parse(result,resultargs,0,0); //不去掉result中的双引号和空格，因为在这里只获取result中每个参数的起始地址，在下面执行前再处理双引号和空格
+    parse(source,sourceargs,0,1);//不去除双引号，但是替换空格为\0，因为要保持result和source的长度一致
+    //在result中逆向查找并替换别名，防止正向替换后下标位置改变不能正确定位
+    for(int i=amount-1;i>=0;i--){
+        int AliasPos = findAlias(sourceargs[i]);
+        if(AliasPos!=-1){ //如果这个命令有别名
+            //1. 删除原名
+            strcpy(resultargs[i],resultargs[i]+strlen(sourceargs[i]));
+            //2. 插入别名：将从resultargs[i]开始的字符向后移动strlen(aliases[AliasPos].Value)
+            //2.1 腾出空间
+            strcpy(resultargs[i]+strlen(aliases[AliasPos].Value),resultargs[i]);
+            //2.2 插入
+            strncpy(resultargs[i],aliases[AliasPos].Value,strlen(aliases[AliasPos].Value));
+        }
+    }
+}
+
 int main(void)
 {
     LoadAlias();
@@ -314,27 +340,26 @@ int main(void)
         //显示提示符
         char hostname[100] = { 0 };
         gethostname(hostname, sizeof(hostname));
-
         char shell_prompt[200];
         snprintf(shell_prompt, sizeof(shell_prompt), ANSI_COLOR_MAGENTA_BOLD "MyShell" ANSI_COLOR_GREEN_BOLD "%s@%s" ANSI_COLOR_RESET ":" ANSI_COLOR_BLUE_BOLD "%s" ANSI_COLOR_RESET "$ ", getenv("USER"), hostname, getcwd(NULL,1024));
-        // snprintf(shell_prompt, sizeof(shell_prompt), "\033[1;35mMyShell\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m$ ", getenv("USER"), hostname, getcwd(NULL,1024));
 
         // 获取用户输入
         char* buf;
         buf = readline(shell_prompt);
-
         while(buf==NULL || strcmp(buf,"")==0){
             buf = readline(shell_prompt);
         }
         add_history(buf);
 
+        //替换别名
+        //cmd是替换了别名后将要执行的命令
+        char* cmd = (char*)malloc((100+strlen(buf))*sizeof(char));
+        strcpy(cmd,buf);
+        ReplaceAlias(buf,cmd);
+
         // 解析输入，获取参数和参数的数量
         char* args[64]; //64个命令和参数
-        int argnum = parse(buf, args);
-
-        //使用--color=always着色
-        // args[argnum]="--color=always";
-        // args[argnum+1]='\0';
+        int argnum = parse(cmd, args,1,1);
 
         if (strcmp(args[0], "exit") == 0)
             break;
@@ -348,14 +373,10 @@ int main(void)
             chdir(args[1]);
         else
         {
-            // 执行前把别名替换成原名
-            if (findAlias(args[0]) != NULL) {
-                strcpy(args[0], findAlias(args[0]));
-            }
-            ExeCmd(args);
-            
+            ExeCmd(args);            
         }
         free(buf);
+        free(cmd);
     }
     SaveAlias();
     exit(0);
