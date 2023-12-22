@@ -293,11 +293,8 @@ void ExeCmd(char* args[]) {
 
             // 恢复文件描述符
             fflush(stdout);
-            fflush(stdin);
             dup2(saved_stdout, STDOUT_FILENO);
             dup2(saved_stdin, STDIN_FILENO);
-            fflush(stdout);
-            fflush(stdin);
         }
         
         if (args[iargs] != NULL) {
