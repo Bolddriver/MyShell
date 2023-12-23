@@ -33,13 +33,11 @@ void addAlias(char* key, char* value) {
             strcpy(aliases[AliasCount].Key, key);
             strcpy(aliases[AliasCount].Value, value);
             AliasCount++;
-        }
-        else {
-            printf("内存分配失败，无法添加别名。\n");
+            printf("Add alias: %s\n",key);
         }
     }
     else {
-        printf("别名存储空间已满，无法添加。\n");
+        printf("Failed to add '%s': alias storage is full.\n",key);
     }
 }
 
@@ -66,7 +64,7 @@ void deleteAlias(char* key) {
             return;
         }
     }
-    printf("未找到别名，无法删除。\n");
+    printf("Failed to delete '%s': alias not found.\n",key);
 }
 
 // 更新别名的值
@@ -78,14 +76,12 @@ void updateAlias(char* key, char* newValue) {
 
             if (aliases[i].Value) {
                 strcpy(aliases[i].Value, newValue);
-            }
-            else {
-                printf("内存分配失败，无法更新别名。\n");
+                printf("Update alias: '%s'\n",key);
             }
             return;
         }
     }
-    printf("未找到别名，无法更新。\n");
+    printf("Failed to update '%s': alias not found.\n",key);
 }
 
 //拆分参数，
@@ -120,6 +116,11 @@ int parse(char* buf, char** args, int RmQuotes, int RmSpace)
                 if(RmQuotes==1)
                     *buf = '\0'; //在buf中删掉第二个双引号
             }
+            else if (*buf == '\'') { //读取到单引号时
+                buf++; //跳过这个单引号
+                while (*buf != '\'') //后移，直到读取到第二个双引号，避免从两个单引号中间的空格截断
+                    buf++;
+            }
             buf++;
         }
         *args++; //args后移，准备读取下一条命令
@@ -136,8 +137,7 @@ int ParseEquality(char* input, char* key, char* value) {
         size_t keyLength = ptr - input; // 计算键的长度
         strncpy(key, input, keyLength);
         key[keyLength] = '\0'; // 手动添加字符串结束符
-        strcpy(value, ptr + 1);
-        printf("Key: %s, Value: %s\n", key, value);
+        strncpy(value, ptr + 2, strlen(ptr+2)-1);
         return 0;
     }
     else return 1;
@@ -150,7 +150,7 @@ void Alias(char* args[]) {
     if (args[1] == NULL) {
         // 无参数，输出所有别名
         for (int i = 0; i < AliasCount; i++) {
-            printf("%s=%s\n", aliases[i].Key, aliases[i].Value);
+            printf("alias %s='%s'\n", aliases[i].Key, aliases[i].Value);
         }
     }
     else {
@@ -169,8 +169,9 @@ void Alias(char* args[]) {
             else {
                 int result = findAlias(args[i]);
                 if (result != -1) {
-                    printf("%s=%s\n", args[i], aliases[result].Value);
+                    printf("alias %s='%s'\n", args[i], aliases[result].Value);
                 }
+                else printf("Can't find alias: %s\n",args[i]);
             }
         }
     }
@@ -373,7 +374,7 @@ int main(void)
             chdir(args[1]);
         else
         {
-            ExeCmd(args);            
+            ExeCmd(args);
         }
         free(buf);
         free(cmd);
