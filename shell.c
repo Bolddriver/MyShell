@@ -23,24 +23,24 @@ struct Aliases {
 } *aliases;
 
 // 增加别名的内存空间
-int allocateAlias(){
-    struct Aliases *temp = (struct Aliases*)realloc(aliases,(AliasCapacity+2)*sizeof(struct Aliases));
-    if(temp==NULL){
+int allocateAlias() {
+    struct Aliases* temp = (struct Aliases*)realloc(aliases, (AliasCapacity + 2) * sizeof(struct Aliases));
+    if (temp == NULL) {
         free(aliases);
         return -1;
     }
     else {
-        AliasCapacity+=2;
-        aliases=temp;
+        AliasCapacity += 2;
+        aliases = temp;
         return 0;
     }
 }
 
 // 添加别名
 void addAlias(char* key, char* value) {
-    if(AliasCount>=AliasCapacity){
-        if(allocateAlias()==-1){
-            printf("Failed to add '%s': can't allocate memory.\n",key);
+    if (AliasCount >= AliasCapacity) {
+        if (allocateAlias() == -1) {
+            printf("Failed to add '%s': can't allocate memory.\n", key);
             return;
         }
     }
@@ -77,7 +77,7 @@ void deleteAlias(char* key) {
             return;
         }
     }
-    printf("Failed to delete '%s': alias not found.\n",key);
+    printf("Failed to delete '%s': alias not found.\n", key);
 }
 
 // 更新别名的值
@@ -94,7 +94,7 @@ void updateAlias(char* key, char* newValue) {
             return;
         }
     }
-    printf("Failed to update '%s': alias not found.\n",key);
+    printf("Failed to update '%s': alias not found.\n", key);
 }
 
 //拆分参数，
@@ -107,11 +107,11 @@ int parse(char* buf, char** args, int RmQuotes, int RmSpace)
     // 把参数之间的分隔符修改为\0结束符
     // args是指向buf的指针。在buf中，把每一个空格、制表符、换行符改成了\0，把buf分割成多个字符串
     int num = 0;
-    while (buf!=NULL && *buf != '\0')
+    while (buf != NULL && *buf != '\0')
     {
         // 定位到命令中每个字符串的第一个非空的字符
-        while ((*buf == ' ') || (*buf == '\t' || (*buf == '\n'))){
-            if(RmSpace==1) *buf = '\0';
+        while ((*buf == ' ') || (*buf == '\t' || (*buf == '\n'))) {
+            if (RmSpace == 1) *buf = '\0';
             *buf++;
         }
 
@@ -122,11 +122,11 @@ int parse(char* buf, char** args, int RmQuotes, int RmSpace)
             // 确保正确识别被双引号包裹的参数
             if (*buf == '"') { //读取到第一个双引号时
                 buf++; //跳过这个双引号
-                if(RmQuotes==1)
-                    *args=buf; //args[i]的地址改成双引号后的字符的地址
+                if (RmQuotes == 1)
+                    *args = buf; //args[i]的地址改成双引号后的字符的地址
                 while (*buf != '"') //后移，直到读取到第二个双引号
                     buf++;
-                if(RmQuotes==1)
+                if (RmQuotes == 1)
                     *buf = '\0'; //在buf中删掉第二个双引号
             }
             else if (*buf == '\'') { //读取到单引号时
@@ -139,7 +139,7 @@ int parse(char* buf, char** args, int RmQuotes, int RmSpace)
         *args++; //args后移，准备读取下一条命令
         num++; //命令计数器增加
     }
-    if(RmSpace==1) *args = '\0';
+    if (RmSpace == 1) *args = '\0';
     return num;
 }
 
@@ -150,7 +150,7 @@ int ParseEquality(char* input, char* key, char* value) {
         size_t keyLength = ptr - input; // 计算键的长度
         strncpy(key, input, keyLength);
         key[keyLength] = '\0'; // 手动添加字符串结束符
-        strncpy(value, ptr + 2, strlen(ptr+2)-1);
+        strncpy(value, ptr + 2, strlen(ptr + 2) - 1);
         return 0;
     }
     else return 1;
@@ -172,8 +172,8 @@ void Alias(char* args[]) {
             //检查参数中有无等号
             // char AKey[LEN_ALIAS]; //键
             // char AValue[LEN_ALIAS]; //值
-            char* AKey = (char *)malloc(strlen(args[i]) * sizeof(char)); //键
-            char* AValue = (char *)malloc(strlen(args[i]) * sizeof(char)); //值
+            char* AKey = (char*)malloc(strlen(args[i]) * sizeof(char)); //键
+            char* AValue = (char*)malloc(strlen(args[i]) * sizeof(char)); //值
             //有等号，添加别名
             if (ParseEquality(args[i], AKey, AValue) == 0) {
                 if (findAlias(AKey) == -1)
@@ -186,7 +186,7 @@ void Alias(char* args[]) {
                 if (result != -1) {
                     printf("alias %s='%s'\n", args[i], aliases[result].Value);
                 }
-                else printf("Can't find alias: %s\n",args[i]);
+                else printf("Can't find alias: %s\n", args[i]);
             }
             free(AKey);
             free(AValue);
@@ -216,11 +216,11 @@ void LoadAlias() {
     size_t bufsizekey = 0;
     size_t bufsizeval = 0;
     int lineNO = 0;
-    
-    while(getline(&bufkey, &bufsizekey, fp)!=-1){
-        if(getline(&bufval, &bufsizeval, fp)!=-1){
-            bufkey[strlen(bufkey)-1] = '\0';
-            bufval[strlen(bufval)-1] = '\0';
+
+    while (getline(&bufkey, &bufsizekey, fp) != -1) {
+        if (getline(&bufval, &bufsizeval, fp) != -1) {
+            bufkey[strlen(bufkey) - 1] = '\0';
+            bufval[strlen(bufval) - 1] = '\0';
             if (findAlias(bufkey) == -1)
                 addAlias(bufkey, bufval);
             else updateAlias(bufkey, bufval);
@@ -267,19 +267,22 @@ void ExeCmd(char* args[]) {
                 int fd = open(args[iargs], O_RDONLY);
                 dup2(fd, STDIN_FILENO);
                 close(fd);
-            } else if (strcmp(args[iargs], ">") == 0) {
+            }
+            else if (strcmp(args[iargs], ">") == 0) {
                 // 输出重定向（覆盖写）
                 iargs++;
                 int fd = open(args[iargs], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
                 dup2(fd, STDOUT_FILENO);
                 close(fd);
-            } else if (strcmp(args[iargs], ">>") == 0) {
+            }
+            else if (strcmp(args[iargs], ">>") == 0) {
                 // 输出重定向（追加写）
                 iargs++;
                 int fd = open(args[iargs], O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
                 dup2(fd, STDOUT_FILENO);
                 close(fd);
-            } else {
+            }
+            else {
                 carg[icarg] = args[iargs];
                 icarg++;
             }
@@ -299,7 +302,8 @@ void ExeCmd(char* args[]) {
             printf("errorfork\n");
             perror("fork");
             exit(EXIT_FAILURE);
-        } else if (pid == 0) { //在子进程中
+        }
+        else if (pid == 0) { //在子进程中
             if (i > 0) { // 不是第一个命令
                 dup2(pipefds[i - 1][0], STDIN_FILENO);
                 close(pipefds[i - 1][0]);
@@ -314,7 +318,8 @@ void ExeCmd(char* args[]) {
             execvp(carg[0], carg);
             perror("execvp");
             exit(EXIT_FAILURE);
-        } else { //父进程
+        }
+        else { //父进程
             if (i > 0) { // 不是第一个命令
                 close(pipefds[i - 1][0]);
                 close(pipefds[i - 1][1]);
@@ -326,7 +331,7 @@ void ExeCmd(char* args[]) {
             dup2(saved_stdout, STDOUT_FILENO);
             dup2(saved_stdin, STDIN_FILENO);
         }
-        
+
         if (args[iargs] != NULL) {
             iargs++; // 跳过管道符号
         }
@@ -334,32 +339,32 @@ void ExeCmd(char* args[]) {
 }
 
 //替换别名，参数：原命令，替换别名后的命令
-void ReplaceAlias(char* source, char* result){
+void ReplaceAlias(char* source, char* result) {
     char* resultargs[64]; //指向result中的每个参数
     char* sourceargs[64]; //指向source中的每个参数
-    int amount=parse(result,resultargs,0,0); //不去掉result中的双引号和空格，因为在这里只获取result中每个参数的起始地址，在下面执行前再处理双引号和空格
-    parse(source,sourceargs,0,1);//不去除双引号，但是替换空格为\0，因为要保持result和source的长度一致
-    if(strcmp(sourceargs[0],"unalias")!=0&&strcmp(sourceargs[0],"alias")!=0){ //不替换alias、unalias命令
+    int amount = parse(result, resultargs, 0, 0); //不去掉result中的双引号和空格，因为在这里只获取result中每个参数的起始地址，在下面执行前再处理双引号和空格
+    parse(source, sourceargs, 0, 1);//不去除双引号，但是替换空格为\0，因为要保持result和source的长度一致
+    if (strcmp(sourceargs[0], "unalias") != 0 && strcmp(sourceargs[0], "alias") != 0) { //不替换alias、unalias命令
         //在result中逆向查找并替换别名，防止正向替换后下标位置改变不能正确定位
-        for(int i=amount-1;i>=0;i--){
+        for (int i = amount - 1;i >= 0;i--) {
             int AliasPos = findAlias(sourceargs[i]);
-            if(AliasPos!=-1){ //如果这个命令有别名
+            if (AliasPos != -1) { //如果这个命令有别名
                 //1. 删除原名
-                strcpy(resultargs[i],resultargs[i]+strlen(sourceargs[i]));
+                strcpy(resultargs[i], resultargs[i] + strlen(sourceargs[i]));
                 //2. 插入别名：将从resultargs[i]开始的字符向后移动strlen(aliases[AliasPos].Value)
                 //2.1 腾出空间
-                strcpy(resultargs[i]+strlen(aliases[AliasPos].Value),resultargs[i]);
+                strcpy(resultargs[i] + strlen(aliases[AliasPos].Value), resultargs[i]);
                 //2.2 插入
-                strncpy(resultargs[i],aliases[AliasPos].Value,strlen(aliases[AliasPos].Value));
+                strncpy(resultargs[i], aliases[AliasPos].Value, strlen(aliases[AliasPos].Value));
             }
         }
     }
-    
+
 }
 
 int main(void)
 {
-    aliases = (struct Aliases*)malloc(AliasCapacity*sizeof(struct Aliases));
+    aliases = (struct Aliases*)malloc(AliasCapacity * sizeof(struct Aliases));
     LoadAlias();
     //按下TAB自动补全
     rl_bind_key('\t', rl_complete);
@@ -370,25 +375,25 @@ int main(void)
         char hostname[100] = { 0 };
         gethostname(hostname, sizeof(hostname));
         char shell_prompt[200];
-        snprintf(shell_prompt, sizeof(shell_prompt), ANSI_COLOR_MAGENTA_BOLD "MyShell" ANSI_COLOR_GREEN_BOLD "%s@%s" ANSI_COLOR_RESET ":" ANSI_COLOR_BLUE_BOLD "%s" ANSI_COLOR_RESET "$ ", getenv("USER"), hostname, getcwd(NULL,1024));
+        snprintf(shell_prompt, sizeof(shell_prompt), ANSI_COLOR_MAGENTA_BOLD "MyShell" ANSI_COLOR_GREEN_BOLD "%s@%s" ANSI_COLOR_RESET ":" ANSI_COLOR_BLUE_BOLD "%s" ANSI_COLOR_RESET "$ ", getenv("USER"), hostname, getcwd(NULL, 1024));
 
         // 获取用户输入
         char* buf;
         buf = readline(shell_prompt);
-        while(buf==NULL || strcmp(buf,"")==0){
+        while (buf == NULL || strcmp(buf, "") == 0) {
             buf = readline(shell_prompt);
         }
         add_history(buf);
 
         //替换别名
         //cmd是替换了别名后将要执行的命令
-        char* cmd = (char*)malloc((100+strlen(buf))*sizeof(char));
-        strcpy(cmd,buf);
-        ReplaceAlias(buf,cmd);
+        char* cmd = (char*)malloc((100 + strlen(buf)) * sizeof(char));
+        strcpy(cmd, buf);
+        ReplaceAlias(buf, cmd);
 
         // 解析输入，获取参数和参数的数量
         char* args[64]; //64个命令和参数
-        int argnum = parse(cmd, args,1,1);
+        int argnum = parse(cmd, args, 1, 1);
 
         if (strcmp(args[0], "exit") == 0)
             break;
