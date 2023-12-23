@@ -15,29 +15,42 @@
 #define ANSI_COLOR_GREEN_BOLD  "\001\033[1;32m\002" //绿色粗体
 #define ANSI_COLOR_BLUE_BOLD "\001\033[1;34m\002" //蓝色粗体
 
-#define MAX_ALIAS 100 //最多能设置的别名数量
-#define LEN_ALIAS 100 //别名的长度
 int AliasCount = 0; //已经设置的别名数量
+int AliasCapacity = 2; //别名的容量
 struct Aliases {
     char* Key;
     char* Value;
-} aliases[MAX_ALIAS];
+} *aliases;
+
+// 增加别名的内存空间
+int allocateAlias(){
+    struct Aliases *temp = (struct Aliases*)realloc(aliases,(AliasCapacity+2)*sizeof(struct Aliases));
+    if(temp==NULL){
+        free(aliases);
+        return -1;
+    }
+    else {
+        AliasCapacity+=2;
+        aliases=temp;
+        return 0;
+    }
+}
 
 // 添加别名
 void addAlias(char* key, char* value) {
-    if (AliasCount < MAX_ALIAS) {
-        aliases[AliasCount].Key = (char*)malloc(strlen(key) + 1);
-        aliases[AliasCount].Value = (char*)malloc(strlen(value) + 1);
-
-        if (aliases[AliasCount].Key && aliases[AliasCount].Value) {
-            strcpy(aliases[AliasCount].Key, key);
-            strcpy(aliases[AliasCount].Value, value);
-            AliasCount++;
-            printf("Add alias: %s\n",key);
+    if(AliasCount>=AliasCapacity){
+        if(allocateAlias()==-1){
+            printf("Failed to add '%s': can't allocate memory.\n",key);
+            return;
         }
     }
-    else {
-        printf("Failed to add '%s': alias storage is full.\n",key);
+    aliases[AliasCount].Key = (char*)malloc(strlen(key) + 1);
+    aliases[AliasCount].Value = (char*)malloc(strlen(value) + 1);
+    if (aliases[AliasCount].Key && aliases[AliasCount].Value) {
+        strcpy(aliases[AliasCount].Key, key);
+        strcpy(aliases[AliasCount].Value, value);
+        AliasCount++;
+        //printf("Add alias: %s\n",key);
     }
 }
 
@@ -76,7 +89,7 @@ void updateAlias(char* key, char* newValue) {
 
             if (aliases[i].Value) {
                 strcpy(aliases[i].Value, newValue);
-                printf("Update alias: '%s'\n",key);
+                //printf("Update alias: '%s'\n",key);
             }
             return;
         }
@@ -157,8 +170,10 @@ void Alias(char* args[]) {
         // 有参数，依次处理每一个参数
         for (int i = 1;args[i] != NULL;i++) {
             //检查参数中有无等号
-            char AKey[LEN_ALIAS]; //键
-            char AValue[LEN_ALIAS]; //值
+            // char AKey[LEN_ALIAS]; //键
+            // char AValue[LEN_ALIAS]; //值
+            char* AKey = (char *)malloc(strlen(args[i]) * sizeof(char)); //键
+            char* AValue = (char *)malloc(strlen(args[i]) * sizeof(char)); //值
             //有等号，添加别名
             if (ParseEquality(args[i], AKey, AValue) == 0) {
                 if (findAlias(AKey) == -1)
@@ -173,6 +188,8 @@ void Alias(char* args[]) {
                 }
                 else printf("Can't find alias: %s\n",args[i]);
             }
+            free(AKey);
+            free(AValue);
         }
     }
 }
@@ -194,16 +211,23 @@ void UnAlias(char* args[]) {
 //加载别名
 void LoadAlias() {
     FILE* fp = fopen("./alias.txt", "a+");
-    char line1[LEN_ALIAS]; // 键
-    char line2[LEN_ALIAS]; // 值
-
-    while (fgets(line1, sizeof(line1), fp) != NULL && fgets(line2, sizeof(line2), fp) != NULL) {
-        line1[strlen(line1) - 1] = '\0';
-        line2[strlen(line2) - 1] = '\0';
-        if (findAlias(line1) == -1)
-            addAlias(line1, line2);
-        else updateAlias(line1, line2);
+    char* bufkey = NULL;
+    char* bufval = NULL;
+    size_t bufsizekey = 0;
+    size_t bufsizeval = 0;
+    int lineNO = 0;
+    
+    while(getline(&bufkey, &bufsizekey, fp)!=-1){
+        if(getline(&bufval, &bufsizeval, fp)!=-1){
+            bufkey[strlen(bufkey)-1] = '\0';
+            bufval[strlen(bufval)-1] = '\0';
+            if (findAlias(bufkey) == -1)
+                addAlias(bufkey, bufval);
+            else updateAlias(bufkey, bufval);
+        }
     }
+    free(bufkey);
+    free(bufval);
     fclose(fp);
 }
 
@@ -315,23 +339,27 @@ void ReplaceAlias(char* source, char* result){
     char* sourceargs[64]; //指向source中的每个参数
     int amount=parse(result,resultargs,0,0); //不去掉result中的双引号和空格，因为在这里只获取result中每个参数的起始地址，在下面执行前再处理双引号和空格
     parse(source,sourceargs,0,1);//不去除双引号，但是替换空格为\0，因为要保持result和source的长度一致
-    //在result中逆向查找并替换别名，防止正向替换后下标位置改变不能正确定位
-    for(int i=amount-1;i>=0;i--){
-        int AliasPos = findAlias(sourceargs[i]);
-        if(AliasPos!=-1){ //如果这个命令有别名
-            //1. 删除原名
-            strcpy(resultargs[i],resultargs[i]+strlen(sourceargs[i]));
-            //2. 插入别名：将从resultargs[i]开始的字符向后移动strlen(aliases[AliasPos].Value)
-            //2.1 腾出空间
-            strcpy(resultargs[i]+strlen(aliases[AliasPos].Value),resultargs[i]);
-            //2.2 插入
-            strncpy(resultargs[i],aliases[AliasPos].Value,strlen(aliases[AliasPos].Value));
+    if(strcmp(sourceargs[0],"unalias")!=0&&strcmp(sourceargs[0],"alias")!=0){ //不替换alias、unalias命令
+        //在result中逆向查找并替换别名，防止正向替换后下标位置改变不能正确定位
+        for(int i=amount-1;i>=0;i--){
+            int AliasPos = findAlias(sourceargs[i]);
+            if(AliasPos!=-1){ //如果这个命令有别名
+                //1. 删除原名
+                strcpy(resultargs[i],resultargs[i]+strlen(sourceargs[i]));
+                //2. 插入别名：将从resultargs[i]开始的字符向后移动strlen(aliases[AliasPos].Value)
+                //2.1 腾出空间
+                strcpy(resultargs[i]+strlen(aliases[AliasPos].Value),resultargs[i]);
+                //2.2 插入
+                strncpy(resultargs[i],aliases[AliasPos].Value,strlen(aliases[AliasPos].Value));
+            }
         }
     }
+    
 }
 
 int main(void)
 {
+    aliases = (struct Aliases*)malloc(AliasCapacity*sizeof(struct Aliases));
     LoadAlias();
     //按下TAB自动补全
     rl_bind_key('\t', rl_complete);
