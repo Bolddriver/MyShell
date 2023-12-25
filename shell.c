@@ -233,7 +233,7 @@ void LoadAlias() {
 
 //保存别名
 void SaveAlias() {
-    FILE* fp = fopen("./alias.txt", "a");
+    FILE* fp = fopen("./alias.txt", "w");
     for (int i = 0; i < AliasCount; i++) {
         fprintf(fp, "%s\n%s\n", aliases[i].Key, aliases[i].Value);
     }
