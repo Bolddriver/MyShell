@@ -338,28 +338,44 @@ void ExeCmd(char* args[]) {
     }
 }
 
-//替换别名，参数：原命令，替换别名后的命令
-void ReplaceAlias(char* source, char* result) {
-    char* resultargs[64]; //指向result中的每个参数
-    char* sourceargs[64]; //指向source中的每个参数
-    int amount = parse(result, resultargs, 0, 0); //不去掉result中的双引号和空格，因为在这里只获取result中每个参数的起始地址，在下面执行前再处理双引号和空格
-    parse(source, sourceargs, 0, 1);//不去除双引号，但是替换空格为\0，因为要保持result和source的长度一致
-    if (strcmp(sourceargs[0], "unalias") != 0 && strcmp(sourceargs[0], "alias") != 0) { //不替换alias、unalias命令
-        //在result中逆向查找并替换别名，防止正向替换后下标位置改变不能正确定位
-        for (int i = amount - 1;i >= 0;i--) {
-            int AliasPos = findAlias(sourceargs[i]);
-            if (AliasPos != -1) { //如果这个命令有别名
-                //1. 删除原名
-                strcpy(resultargs[i], resultargs[i] + strlen(sourceargs[i]));
-                //2. 插入别名：将从resultargs[i]开始的字符向后移动strlen(aliases[AliasPos].Value)
-                //2.1 腾出空间
-                strcpy(resultargs[i] + strlen(aliases[AliasPos].Value), resultargs[i]);
-                //2.2 插入
-                strncpy(resultargs[i], aliases[AliasPos].Value, strlen(aliases[AliasPos].Value));
-            }
+
+//检查参数中是否有未被替换过的别名，有则返回1，无则返回0
+int existAlias(char** args){
+    for(int i=0;args[i]!=NULL;i++){
+        int AliasPos = findAlias(args[i]);
+        if(AliasPos!=-1){
+            if(args[i+1]==NULL) //下一个参数为空，说明该别名还没有替换
+                return 1;
+            if(strstr(aliases[AliasPos].Value,args[i+1])==NULL) //下一个参数不为空，检查别名的值是否含有该参数
+                return 1;
         }
     }
+    return 0;
+}
 
+//替换别名，参数：原命令，替换别名后的命令
+void ReplaceAlias(char* source) {
+    char* sourceargs[64]; //指向source中的每个参数
+    int amount = parse(source, sourceargs, 0, 1);//不去除双引号，但是替换空格为\0，因为要保持result和source的长度一致
+    if (strcmp(sourceargs[0], "unalias") != 0 && strcmp(sourceargs[0], "alias") != 0) { //不替换alias、unalias命令
+        while(existAlias(sourceargs)){
+            //在result中逆向查找并替换别名，防止正向替换后下标位置改变不能正确定位
+            for (int i = amount - 1;i >= 0;i--) {
+                int AliasPos = findAlias(sourceargs[i]);
+                int arglen = strlen(sourceargs[i]);
+                if(i!=amount-1) *(sourceargs[i+1]-1)=' '; //去掉结束符\0
+                if (AliasPos != -1) { //如果这个命令有别名
+                    strcpy(sourceargs[i] + strlen(aliases[AliasPos].Value),sourceargs[i] + arglen);
+                    strncpy(sourceargs[i], aliases[AliasPos].Value, strlen(aliases[AliasPos].Value));
+                }
+            }
+            amount = parse(source, sourceargs, 0, 1);
+        }
+    }
+    //恢复被替换成结束符\0的空格
+    for(int i=amount-1;i>=0;i--){
+        if(i!=amount-1) *(sourceargs[i+1]-1)=' '; //去掉结束符\0
+    }
 }
 
 int main(void)
@@ -389,7 +405,9 @@ int main(void)
         //cmd是替换了别名后将要执行的命令
         char* cmd = (char*)malloc((100 + strlen(buf)) * sizeof(char));
         strcpy(cmd, buf);
-        ReplaceAlias(buf, cmd);
+        // ReplaceAlias(buf, cmd);
+        ReplaceAlias(cmd);
+
 
         // 解析输入，获取参数和参数的数量
         char* args[64]; //64个命令和参数
