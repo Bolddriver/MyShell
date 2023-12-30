@@ -356,6 +356,7 @@ int existAlias(char** args) {
 
 //替换别名，参数：原命令，替换别名后的命令
 void ReplaceAlias(char* source) {
+    int len = strlen(source);
     char* sourceargs[64]; //指向source中的每个参数
     int amount = parse(source, sourceargs, 0, 1);//不去除双引号，但是替换空格为\0，因为要保持result和source的长度一致
     if (strcmp(sourceargs[0], "unalias") != 0 && strcmp(sourceargs[0], "alias") != 0) { //不替换alias、unalias命令
@@ -372,6 +373,10 @@ void ReplaceAlias(char* source) {
             }
             amount = parse(source, sourceargs, 0, 1);
         }
+    }
+    //恢复命令开头被替换成\0的空格，确保字符串正确识别
+    for(int i=0;i<len;i++){
+        if(source[i]=='\0') source[i]=' ';
     }
     //恢复被替换成结束符\0的空格
     for (int i = amount - 1;i >= 0;i--) {
